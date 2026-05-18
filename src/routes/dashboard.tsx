@@ -1,0 +1,454 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { ArrowLeft, User, Youtube, BarChart3, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+export const Route = createFileRoute("/dashboard")({
+  component: Dashboard,
+});
+
+type Influencer = {
+  id: string;
+  name: string;
+  photo_url: string | null;
+  tagline: string | null;
+  bio: string | null;
+  accent_color: string | null;
+};
+type Video = {
+  id: string;
+  title: string | null;
+  duration_seconds: number | null;
+  status: string;
+};
+
+const SECTIONS = [
+  { id: "profile", label: "Perfil del Clon", icon: User },
+  { id: "ingest", label: "Ingesta de YouTube", icon: Youtube },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
+] as const;
+
+function Dashboard() {
+  const [section, setSection] =
+    useState<(typeof SECTIONS)[number]["id"]>("profile");
+  const [inf, setInf] = useState<Influencer | null>(null);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [conversationsCount, setConversationsCount] = useState(0);
+  const [messagesToday, setMessagesToday] = useState(0);
+
+  async function load() {
+    const { data: i } = await supabase
+      .from("influencers")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    setInf(i as Influencer | null);
+    if (i) {
+      const { data: v } = await supabase
+        .from("videos")
+        .select("id,title,duration_seconds,status")
+        .eq("influencer_id", (i as Influencer).id)
+        .order("processed_at", { ascending: false });
+      setVideos((v ?? []) as Video[]);
+
+      const { count: cc } = await supabase
+        .from("conversations")
+        .select("id", { count: "exact", head: true })
+        .eq("influencer_id", (i as Influencer).id);
+      setConversationsCount(cc ?? 0);
+
+      const since = new Date();
+      since.setHours(0, 0, 0, 0);
+      const { data: today } = await supabase
+        .from("conversations")
+        .select("messages")
+        .eq("influencer_id", (i as Influencer).id)
+        .gte("updated_at", since.toISOString());
+      const total = (today ?? []).reduce(
+        (acc: number, row: { messages: unknown }) =>
+          acc + (Array.isArray(row.messages) ? row.messages.length : 0),
+        0,
+      );
+      setMessagesToday(total);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#F9FAFB]">
+      <header className="border-b border-border bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div className="text-sm font-semibold">Dashboard · AlterEgo</div>
+          </div>
+          <Link to="/chat" className="text-sm text-muted-foreground hover:text-foreground">
+            Ver chat público →
+          </Link>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-6xl grid-cols-[220px_1fr] gap-6 px-6 py-8">
+        <aside className="space-y-1">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSection(s.id)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
+                section === s.id
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <s.icon className="h-4 w-4" />
+              {s.label}
+            </button>
+          ))}
+        </aside>
+
+        <main>
+          {section === "profile" && (
+            <ProfileSection inf={inf} onSaved={load} />
+          )}
+          {section === "ingest" && (
+            <IngestSection influencerId={inf?.id} videos={videos} onDone={load} />
+          )}
+          {section === "analytics" && (
+            <AnalyticsSection
+              conversationsCount={conversationsCount}
+              messagesToday={messagesToday}
+            />
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function Card({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+      <h2 className="mb-4 text-lg font-semibold tracking-tight">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function ProfileSection({
+  inf,
+  onSaved,
+}: {
+  inf: Influencer | null;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<Influencer | null>(inf);
+  useEffect(() => setForm(inf), [inf]);
+  const [saving, setSaving] = useState(false);
+
+  if (!form) return <div className="text-muted-foreground">Cargando...</div>;
+
+  async function save() {
+    if (!form) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("influencers")
+      .update({
+        name: form.name,
+        photo_url: form.photo_url,
+        tagline: form.tagline,
+        bio: form.bio,
+        accent_color: form.accent_color,
+      })
+      .eq("id", form.id);
+    setSaving(false);
+    if (error) {
+      toast.error("No se pudo guardar");
+      return;
+    }
+    toast.success("Cambios guardados");
+    onSaved();
+  }
+
+  return (
+    <Card title="Perfil del Clon">
+      <div className="grid gap-4">
+        <Field label="Nombre">
+          <Input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </Field>
+        <Field label="Foto (URL)">
+          <Input
+            value={form.photo_url ?? ""}
+            onChange={(e) => setForm({ ...form, photo_url: e.target.value })}
+            placeholder="https://..."
+          />
+        </Field>
+        <Field label="Frase característica">
+          <Input
+            value={form.tagline ?? ""}
+            onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+          />
+        </Field>
+        <Field label="Bio corta">
+          <Textarea
+            value={form.bio ?? ""}
+            onChange={(e) => setForm({ ...form, bio: e.target.value })}
+            rows={3}
+          />
+        </Field>
+        <Field label="Color acento">
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={form.accent_color ?? "#6C47FF"}
+              onChange={(e) =>
+                setForm({ ...form, accent_color: e.target.value })
+              }
+              className="h-10 w-14 cursor-pointer rounded-lg border border-border bg-transparent"
+            />
+            <span className="text-sm text-muted-foreground">
+              {form.accent_color}
+            </span>
+          </div>
+        </Field>
+        <div>
+          <Button onClick={save} disabled={saving} className="rounded-xl">
+            {saving ? "Guardando..." : "Guardar cambios"}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+function IngestSection({
+  influencerId,
+  videos,
+  onDone,
+}: {
+  influencerId?: string;
+  videos: Video[];
+  onDone: () => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<string>("");
+
+  async function run() {
+    if (!url.trim() || !influencerId) return;
+    setRunning(true);
+    setProgress(0);
+    setStage("Iniciando...");
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ingest`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            youtube_channel_url: url,
+            influencer_id: influencerId,
+          }),
+        },
+      );
+      if (!res.body) throw new Error("no body");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          try {
+            const j = JSON.parse(t.slice(5).trim());
+            if (typeof j.progress === "number") setProgress(j.progress);
+            if (j.message) setStage(j.message);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      toast.success("Canal procesado");
+      onDone();
+    } catch (e) {
+      console.error(e);
+      toast.error("Error en el procesamiento");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-6">
+      <Card title="Procesar canal de YouTube">
+        <div className="flex gap-2">
+          <Input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://youtube.com/@canal"
+            disabled={running}
+          />
+          <Button onClick={run} disabled={running || !url.trim()} className="rounded-xl">
+            {running ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando
+              </>
+            ) : (
+              "Procesar canal"
+            )}
+          </Button>
+        </div>
+        {(running || progress > 0) && (
+          <div className="mt-4 space-y-2">
+            <Progress value={progress} />
+            <div className="text-sm text-muted-foreground">{stage}</div>
+          </div>
+        )}
+      </Card>
+
+      <Card title="Videos procesados">
+        {videos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Aún no se ha procesado ningún canal.
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Título</th>
+                  <th className="px-4 py-2 font-medium">Duración</th>
+                  <th className="px-4 py-2 font-medium">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {videos.slice(0, 20).map((v) => (
+                  <tr key={v.id} className="border-t border-border">
+                    <td className="px-4 py-2">{v.title}</td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      {formatDuration(v.duration_seconds ?? 0)}
+                    </td>
+                    <td className="px-4 py-2">
+                      <StatusBadge status={v.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function formatDuration(s: number) {
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    done: { label: "Procesado", cls: "bg-emerald-100 text-emerald-700" },
+    pending: { label: "Pendiente", cls: "bg-amber-100 text-amber-700" },
+    processing: { label: "Procesando", cls: "bg-blue-100 text-blue-700" },
+    error: { label: "Error", cls: "bg-red-100 text-red-700" },
+  };
+  const v = map[status] ?? map.pending;
+  return (
+    <Badge variant="secondary" className={cn("rounded-full font-medium", v.cls)}>
+      {v.label}
+    </Badge>
+  );
+}
+
+function AnalyticsSection({
+  conversationsCount,
+  messagesToday,
+}: {
+  conversationsCount: number;
+  messagesToday: number;
+}) {
+  return (
+    <div className="grid gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Metric label="Conversaciones totales" value={conversationsCount.toString()} />
+        <Metric label="Mensajes hoy" value={messagesToday.toString()} />
+        <Metric label="Usuarios únicos" value={conversationsCount.toString()} />
+      </div>
+      <Card title="Preguntas más frecuentes">
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          <li>· ¿Por dónde empiezo en tecnología?</li>
+          <li>· Recomiéndame un libro</li>
+          <li>· ¿Cómo organizas tu día?</li>
+          <li>· ¿Qué herramientas usas?</li>
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 text-3xl font-semibold tracking-tight">{value}</div>
+    </div>
+  );
+}
