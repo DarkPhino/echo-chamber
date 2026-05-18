@@ -14,13 +14,177 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chunks: {
+        Row: {
+          content: string
+          embedding: string | null
+          id: string
+          influencer_id: string | null
+          metadata: Json | null
+          video_id: string | null
+        }
+        Insert: {
+          content: string
+          embedding?: string | null
+          id?: string
+          influencer_id?: string | null
+          metadata?: Json | null
+          video_id?: string | null
+        }
+        Update: {
+          content?: string
+          embedding?: string | null
+          id?: string
+          influencer_id?: string | null
+          metadata?: Json | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chunks_influencer_id_fkey"
+            columns: ["influencer_id"]
+            isOneToOne: false
+            referencedRelation: "influencers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chunks_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string
+          id: string
+          influencer_id: string | null
+          ip_hash: string | null
+          messages: Json
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          influencer_id?: string | null
+          ip_hash?: string | null
+          messages?: Json
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          influencer_id?: string | null
+          ip_hash?: string | null
+          messages?: Json
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_influencer_id_fkey"
+            columns: ["influencer_id"]
+            isOneToOne: false
+            referencedRelation: "influencers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      influencers: {
+        Row: {
+          accent_color: string | null
+          bio: string | null
+          created_at: string
+          id: string
+          name: string
+          photo_url: string | null
+          slug: string
+          system_prompt: string | null
+          tagline: string | null
+        }
+        Insert: {
+          accent_color?: string | null
+          bio?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          photo_url?: string | null
+          slug: string
+          system_prompt?: string | null
+          tagline?: string | null
+        }
+        Update: {
+          accent_color?: string | null
+          bio?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          photo_url?: string | null
+          slug?: string
+          system_prompt?: string | null
+          tagline?: string | null
+        }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          duration_seconds: number | null
+          id: string
+          influencer_id: string | null
+          processed_at: string | null
+          status: string
+          title: string | null
+          youtube_id: string
+        }
+        Insert: {
+          duration_seconds?: number | null
+          id?: string
+          influencer_id?: string | null
+          processed_at?: string | null
+          status?: string
+          title?: string | null
+          youtube_id: string
+        }
+        Update: {
+          duration_seconds?: number | null
+          id?: string
+          influencer_id?: string | null
+          processed_at?: string | null
+          status?: string
+          title?: string | null
+          youtube_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_influencer_id_fkey"
+            columns: ["influencer_id"]
+            isOneToOne: false
+            referencedRelation: "influencers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_chunks: {
+        Args: {
+          match_count?: number
+          match_influencer_id: string
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          id: string
+          similarity: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
