@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft, User, Youtube, BarChart3, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +31,7 @@ type Video = {
 };
 
 const SECTIONS = [
-  { id: "profile", label: "Perfil del Clon", icon: User },
+  { id: "profile", label: "Perfil del Influencer", icon: User },
   { id: "ingest", label: "Ingesta de YouTube", icon: Youtube },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
 ] as const;
@@ -43,6 +43,10 @@ function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [conversationsCount, setConversationsCount] = useState(0);
   const [messagesToday, setMessagesToday] = useState(0);
+  const [uniqueUsers, setUniqueUsers] = useState(0);
+  const [topQuestions, setTopQuestions] = useState<
+    { question: string; count: number }[]
+  >([]);
 
   async function load() {
     const { data: i } = await supabase
@@ -79,6 +83,41 @@ function Dashboard() {
         0,
       );
       setMessagesToday(total);
+
+      // Unique users = distinct session_ids
+      const { data: sessions } = await supabase
+        .from("conversations")
+        .select("session_id")
+        .eq("influencer_id", (i as Influencer).id);
+      const uniq = new Set(
+        (sessions ?? []).map((r: { session_id: string }) => r.session_id),
+      );
+      setUniqueUsers(uniq.size);
+
+      // Top questions = most frequent user messages across all conversations
+      const { data: convs } = await supabase
+        .from("conversations")
+        .select("messages")
+        .eq("influencer_id", (i as Influencer).id)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+      const freq = new Map<string, number>();
+      for (const row of convs ?? []) {
+        const msgs = (row as { messages: unknown }).messages;
+        if (!Array.isArray(msgs)) continue;
+        for (const m of msgs as { role: string; content: string }[]) {
+          if (m.role !== "user" || typeof m.content !== "string") continue;
+          const q = m.content.trim();
+          if (q.length < 4 || q.length > 140) continue;
+          const key = q.toLowerCase();
+          freq.set(key, (freq.get(key) ?? 0) + 1);
+        }
+      }
+      const top = Array.from(freq.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([question, count]) => ({ question, count }));
+      setTopQuestions(top);
     }
   }
 
@@ -105,14 +144,14 @@ function Dashboard() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-6xl grid-cols-[220px_1fr] gap-6 px-6 py-8">
-        <aside className="space-y-1">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 md:grid md:grid-cols-[220px_1fr]">
+        <aside className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 md:mx-0 md:block md:space-y-1 md:overflow-visible md:px-0 md:pb-0">
           {SECTIONS.map((s) => (
             <button
               key={s.id}
               onClick={() => setSection(s.id)}
               className={cn(
-                "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
+                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition md:w-full md:text-left",
                 section === s.id
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted",
@@ -124,7 +163,7 @@ function Dashboard() {
           ))}
         </aside>
 
-        <main>
+        <main className="min-w-0">
           {section === "profile" && (
             <ProfileSection inf={inf} onSaved={load} />
           )}
@@ -135,6 +174,8 @@ function Dashboard() {
             <AnalyticsSection
               conversationsCount={conversationsCount}
               messagesToday={messagesToday}
+              uniqueUsers={uniqueUsers}
+              topQuestions={topQuestions}
             />
           )}
         </main>
@@ -194,7 +235,7 @@ function ProfileSection({
   }
 
   return (
-    <Card title="Perfil del Clon">
+    <Card title="Perfil del Influencer">
       <div className="grid gap-4">
         <Field label="Nombre">
           <Input
@@ -419,24 +460,38 @@ function StatusBadge({ status }: { status: string }) {
 function AnalyticsSection({
   conversationsCount,
   messagesToday,
+  uniqueUsers,
+  topQuestions,
 }: {
   conversationsCount: number;
   messagesToday: number;
+  uniqueUsers: number;
+  topQuestions: { question: string; count: number }[];
 }) {
   return (
     <div className="grid gap-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Metric label="Conversaciones totales" value={conversationsCount.toString()} />
         <Metric label="Mensajes hoy" value={messagesToday.toString()} />
-        <Metric label="Usuarios únicos" value={conversationsCount.toString()} />
+        <Metric label="Usuarios únicos" value={uniqueUsers.toString()} />
       </div>
       <Card title="Preguntas más frecuentes">
-        <ul className="space-y-2 text-sm text-muted-foreground">
-          <li>· ¿Por dónde empiezo en tecnología?</li>
-          <li>· Recomiéndame un libro</li>
-          <li>· ¿Cómo organizas tu día?</li>
-          <li>· ¿Qué herramientas usas?</li>
-        </ul>
+        {topQuestions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Aún no hay suficientes conversaciones para mostrar tendencias.
+          </p>
+        ) : (
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            {topQuestions.map((q) => (
+              <li key={q.question} className="flex items-start justify-between gap-3">
+                <span>· {q.question}</span>
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">
+                  ×{q.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </div>
   );
