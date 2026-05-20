@@ -107,11 +107,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    const brevityRule = `Reglas de estilo (obligatorio):
+- Responde como una persona real en un chat, no como un artículo ni un ensayo.
+- Máximo 2 o 3 frases por respuesta, breve y conversacional.
+- Solo entrega una explicación larga o lista detallada si el usuario lo pide explícitamente.
+- Tono natural, cercano y directo. Sin introducciones formales ni cierres tipo "espero que te sirva".`;
+
     const systemPrompt = `${influencer.system_prompt ?? `Eres ${influencer.name}.`}\n\n${
       contextSnippets
         ? `Contexto relevante extraído de tus videos:\n${contextSnippets}\n\nUsa este contexto cuando aplique, pero responde siempre en tu personaje y tono natural.`
         : "Aún no tienes videos indexados. Responde con tu personalidad general y, si te preguntan algo muy específico, dilo con honestidad."
-    }`;
+    }\n\n${brevityRule}`;
 
     const recentHistory = (history as { role: string; content: string }[]).slice(-8);
     const messages = [
