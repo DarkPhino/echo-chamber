@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Mic, ArrowLeft } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { ArrowUp, Mic, MicOff, ArrowLeft, Phone } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +32,9 @@ const SUGGESTIONS = [
   "¿Qué herramientas usas?",
 ];
 
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = 50;
+const HISTORY_LIMIT = 50;
+const historyKey = (sid: string) => `alterego_chat_${sid}`;
 
 function ChatPage() {
   const [inf, setInf] = useState<Influencer | null>(null);
@@ -40,8 +42,10 @@ function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [remaining, setRemaining] = useState(DAILY_LIMIT);
+  const [listening, setListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     supabase
@@ -53,6 +57,35 @@ function ChatPage() {
       .then(({ data }) => setInf(data as Influencer | null));
   }, []);
 
+  // Load saved chat history from localStorage on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(historyKey(getSessionId()));
+      if (raw) {
+        const parsed = JSON.parse(raw) as Msg[];
+        if (Array.isArray(parsed)) setMessages(parsed.slice(-HISTORY_LIMIT));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Persist chat history (capped) whenever messages change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (messages.length === 0) return;
+    try {
+      const trimmed = messages.slice(-HISTORY_LIMIT);
+      window.localStorage.setItem(
+        historyKey(getSessionId()),
+        JSON.stringify(trimmed),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [messages]);
+
   useEffect(() => {
     inputRef.current?.focus();
   }, [streaming]);
@@ -63,6 +96,41 @@ function ChatPage() {
       behavior: "smooth",
     });
   }, [messages, streaming]);
+
+  function toggleListening() {
+    if (typeof window === "undefined") return;
+    const SR: any =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "es-ES";
+    rec.interimResults = true;
+    rec.continuous = false;
+    let finalText = "";
+    rec.onresult = (e: any) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      setInput((finalText + interim).trim());
+    };
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+    }
+  }
 
   const initials = (inf?.name ?? "AE")
     .split(" ")
@@ -159,6 +227,7 @@ function ChatPage() {
   }
 
   const showSuggestions = messages.length === 0 && !streaming;
+  const hasInput = input.trim().length > 0;
 
   return (
     <div className="flex h-screen flex-col bg-white">
@@ -242,25 +311,51 @@ function ChatPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant={listening ? "default" : "ghost"}
                     size="icon"
-                    disabled
+                    onClick={toggleListening}
                     className="h-9 w-9 shrink-0 rounded-xl"
                   >
-                    <Mic className="h-4 w-4" />
+                    {listening ? (
+                      <MicOff className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Próximamente</TooltipContent>
+                <TooltipContent>
+                  {listening ? "Detener dictado" : "Dictar por voz"}
+                </TooltipContent>
               </Tooltip>
+              {!hasInput ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled
+                        className="h-9 w-9 shrink-0 rounded-xl"
+                      >
+                        <Phone className="h-4 w-4" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Próximamente — Conversación en tiempo real
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button
+                  onClick={() => send(input)}
+                  disabled={!input.trim() || streaming || remaining <= 0}
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-xl"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+              )}
             </TooltipProvider>
-            <Button
-              onClick={() => send(input)}
-              disabled={!input.trim() || streaming || remaining <= 0}
-              size="icon"
-              className="h-9 w-9 shrink-0 rounded-xl"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </div>
