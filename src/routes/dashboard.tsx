@@ -22,6 +22,7 @@ type Influencer = {
   tagline: string | null;
   bio: string | null;
   accent_color: string | null;
+  voice: string | null;
 };
 type Video = {
   id: string;
@@ -223,6 +224,7 @@ function ProfileSection({
         tagline: form.tagline,
         bio: form.bio,
         accent_color: form.accent_color,
+        voice: form.voice ?? "Aoede",
       })
       .eq("id", form.id);
     setSaving(false);
@@ -277,6 +279,22 @@ function ProfileSection({
               {form.accent_color}
             </span>
           </div>
+        </Field>
+        <Field label="Voz para llamadas en tiempo real (Gemini Live)">
+          <select
+            value={form.voice ?? "Aoede"}
+            onChange={(e) => setForm({ ...form, voice: e.target.value })}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="Aoede">Aoede — femenina cálida</option>
+            <option value="Kore">Kore — femenina neutral</option>
+            <option value="Leda">Leda — femenina suave</option>
+            <option value="Zephyr">Zephyr — femenina enérgica</option>
+            <option value="Puck">Puck — masculina enérgica</option>
+            <option value="Charon">Charon — masculina grave</option>
+            <option value="Fenrir">Fenrir — masculina firme</option>
+            <option value="Orus">Orus — masculina cálida</option>
+          </select>
         </Field>
         <div>
           <Button onClick={save} disabled={saving} className="rounded-xl">
