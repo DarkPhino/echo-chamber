@@ -363,19 +363,11 @@ function ChatPage() {
 
       {callOpen && inf ? (
         <CallOverlay
-          inf={inf}
+          influencerId={inf.id}
+          name={inf.name}
+          photoUrl={inf.photo_url}
           initials={initials}
           onClose={() => setCallOpen(false)}
-          remaining={remaining}
-          setRemaining={setRemaining}
-          messagesRef={messages}
-          appendMessages={(u, a) =>
-            setMessages((m) => [
-              ...m,
-              { role: "user", content: u },
-              { role: "assistant", content: a },
-            ])
-          }
         />
       ) : null}
     </div>
