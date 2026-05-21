@@ -105,6 +105,7 @@ export type Database = {
           slug: string
           system_prompt: string | null
           tagline: string | null
+          voice: string
         }
         Insert: {
           accent_color?: string | null
@@ -116,6 +117,7 @@ export type Database = {
           slug: string
           system_prompt?: string | null
           tagline?: string | null
+          voice?: string
         }
         Update: {
           accent_color?: string | null
@@ -127,6 +129,7 @@ export type Database = {
           slug?: string
           system_prompt?: string | null
           tagline?: string | null
+          voice?: string
         }
         Relationships: []
       }

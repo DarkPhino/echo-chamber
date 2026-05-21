@@ -1,0 +1,1 @@
+ALTER TABLE public.influencers ADD COLUMN IF NOT EXISTS voice text NOT NULL DEFAULT 'Aoede';
