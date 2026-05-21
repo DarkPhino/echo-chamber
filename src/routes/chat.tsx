@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Mic, MicOff, ArrowLeft, Phone, PhoneOff, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Mic, MicOff, ArrowLeft, Phone } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getSessionId } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import CallOverlay from "@/components/CallOverlay";
 
 export const Route = createFileRoute("/chat")({
   component: ChatPage,
