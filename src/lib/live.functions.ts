@@ -65,24 +65,23 @@ export const getLiveToken = createServerFn({ method: "POST" })
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          config: {
-            uses: 1,
-            expireTime,
-            newSessionExpireTime,
-            bidiGenerateContentSetup: {
-              model: MODEL,
-              generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: {
-                  voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: voice },
-                  },
-                  languageCode: "es-ES",
+          uses: 1,
+          expireTime,
+          newSessionExpireTime,
+          bidiGenerateContentSetup: {
+            model: MODEL,
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: voice },
                 },
+                languageCode: "es-ES",
               },
-              systemInstruction: { parts: [{ text: systemInstruction }] },
             },
-            lockAdditionalFields: [],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            outputAudioTranscription: {},
+            inputAudioTranscription: {},
           },
         }),
       },

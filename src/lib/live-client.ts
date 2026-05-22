@@ -7,6 +7,8 @@ export type LiveEvents = {
   onAudio?: (b64: string) => void;
   onInterrupted?: () => void;
   onTurnComplete?: () => void;
+  onUserTranscript?: (text: string) => void;
+  onModelTranscript?: (text: string) => void;
   onError?: (msg: string) => void;
   onClose?: (code: number) => void;
 };
@@ -30,7 +32,7 @@ export class GeminiLiveClient {
 
   connect() {
     const url =
-      "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=" +
+      "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=" +
       encodeURIComponent(this.token);
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
@@ -101,6 +103,13 @@ export class GeminiLiveClient {
         ) {
           this.events.onAudio?.(inline.data);
         }
+      }
+
+      if (sc.inputTranscription?.text) {
+        this.events.onUserTranscript?.(sc.inputTranscription.text);
+      }
+      if (sc.outputTranscription?.text) {
+        this.events.onModelTranscript?.(sc.outputTranscription.text);
       }
 
       if (sc.turnComplete) {

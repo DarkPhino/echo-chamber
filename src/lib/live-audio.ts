@@ -28,8 +28,17 @@ export class MicCapture {
   private stream: MediaStream | null = null;
   private node: AudioWorkletNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
+  private muted = false;
 
   constructor(private onChunk: (b64: string) => void) {}
+
+  setOnChunk(cb: (b64: string) => void) {
+    this.onChunk = cb;
+  }
+
+  setMuted(m: boolean) {
+    this.muted = m;
+  }
 
   async start() {
     this.stream = await navigator.mediaDevices.getUserMedia({
@@ -46,6 +55,7 @@ export class MicCapture {
     this.source = this.ctx.createMediaStreamSource(this.stream);
     this.node = new AudioWorkletNode(this.ctx, "pcm-worklet");
     this.node.port.onmessage = (e) => {
+      if (this.muted) return;
       this.onChunk(int16ToBase64(e.data as ArrayBuffer));
     };
     this.source.connect(this.node);
